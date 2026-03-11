@@ -1,4 +1,4 @@
-import { startTransition, useEffect, useState } from "react";
+import { startTransition, useEffect, useMemo, useState } from "react";
 import type { RealtimeItem } from "@openai/agents/realtime";
 import type { TaskRecord } from "../shared/types";
 import { useVoiceOperator } from "./hooks/useVoiceOperator";
@@ -54,10 +54,6 @@ function renderRealtimeItem(item: RealtimeItem): { label: string; body: string }
 export default function App() {
   const [health, setHealth] = useState<HealthResponse | null>(null);
   const [tasks, setTasks] = useState<TaskRecord[]>([]);
-  const [request, setRequest] = useState("");
-  const [chatMessage, setChatMessage] = useState("");
-  const [taskDrafts, setTaskDrafts] = useState<Record<string, Record<string, string>>>({});
-  const [submitting, setSubmitting] = useState(false);
   const [taskError, setTaskError] = useState<string | null>(null);
   const voice = useVoiceOperator();
 
@@ -115,148 +111,67 @@ export default function App() {
   const transcript = voice.history
     .map(renderRealtimeItem)
     .filter((item) => item.body.trim());
-
-  async function submitRequest(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!request.trim()) {
-      return;
+  const statusCopy = useMemo(() => {
+    if (voice.connectionState === "connecting") {
+      return "Connecting to the live voice session. Allow microphone access if the browser asks.";
     }
 
-    setSubmitting(true);
-    setTaskError(null);
-    try {
-      const created = await api.submitTask({
-        request: request.trim()
-      });
-      setRequest("");
-      setTasks((current) => [created, ...current.filter((item) => item.id !== created.id)]);
-    } catch (error) {
-      setTaskError(
-        error instanceof Error ? error.message : "Unable to submit task."
-      );
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function submitTaskInputs(task: TaskRecord) {
-    const draft = taskDrafts[task.id] ?? {};
-    const inputs = Object.fromEntries(
-      Object.entries(draft).filter(([, value]) => value.trim())
-    );
-
-    if (Object.keys(inputs).length === 0) {
-      return;
+    if (voice.connectionState === "connected") {
+      return "Listening. Say what you want done, then answer follow-up questions out loud.";
     }
 
-    const updated = await api.updateTaskInputs(task.id, { inputs });
-    setTaskDrafts((current) => {
-      const next = { ...current };
-      delete next[task.id];
-      return next;
-    });
-    setTasks((current) =>
-      current.map((item) => (item.id === updated.id ? updated : item))
-    );
-  }
-
-  async function resolveApproval(taskId: string, approvalId: string, approved: boolean) {
-    const updated = await api.resolveApproval(taskId, { approvalId, approved });
-    setTasks((current) =>
-      current.map((item) => (item.id === updated.id ? updated : item))
-    );
-  }
-
-  async function sendTextMessage(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!chatMessage.trim()) {
-      return;
+    if (voice.connectionState === "error") {
+      return "Voice setup failed. Check microphone permissions and refresh the page.";
     }
-    voice.sendTextMessage(chatMessage);
-    setChatMessage("");
-  }
+
+    return "Starting voice operator.";
+  }, [voice.connectionState]);
 
   return (
-    <main className="app-shell">
-      <section className="hero">
-        <div>
-          <p className="eyebrow">Voice-first task operator</p>
-          <h1>Speak once. The agent keeps going until the workflow lands.</h1>
-          <p className="hero-copy">
-            This app pairs a live `gpt-realtime` voice session with a background task
-            worker that can research, navigate websites, pause for approvals, and keep
-            the run moving without constant hand-holding.
-          </p>
+    <main className="voice-page">
+      <section className="voice-stage">
+        <p className="eyebrow">Voice Operator</p>
+        <h1>Just speak.</h1>
+        <p className="hero-copy">
+          No buttons. No text forms. The session starts automatically, listens for
+          your request, and keeps the task moving by voice.
+        </p>
+
+        <div className={`voice-orb voice-orb--${voice.connectionState}`}>
+          <div className="voice-orb-core" />
         </div>
-        <div className="hero-status">
-          <div className="status-chip">
+
+        <div className="status-stack">
+          <p className="status-line">
             <span className="status-dot" data-state={voice.connectionState} />
             Voice {voice.connectionState}
-          </div>
-          <div className="status-chip">
+          </p>
+          <p className="status-copy">{statusCopy}</p>
+          <p className="status-copy">
             OpenAI {health?.openAiConfigured ? "configured" : "missing key"}
-          </div>
+          </p>
+          {voice.error ? <p className="inline-error">{voice.error}</p> : null}
+          {taskError ? <p className="inline-error">{taskError}</p> : null}
         </div>
       </section>
 
-      <section className="layout-grid">
-        <section className="panel spotlight">
+      <section className="voice-grid">
+        <section className="panel">
           <header className="panel-header">
             <div>
-              <p className="panel-kicker">Live Console</p>
-              <h2>Voice cockpit</h2>
-            </div>
-            <div className="button-row">
-              <button
-                className="button accent"
-                onClick={voice.connectionState === "connected" ? voice.disconnect : voice.connect}
-                type="button"
-              >
-                {voice.connectionState === "connected" ? "Disconnect" : "Connect voice"}
-              </button>
-              <button
-                className="button"
-                disabled={voice.connectionState !== "connected"}
-                onClick={voice.toggleMute}
-                type="button"
-              >
-                {voice.muted ? "Unmute mic" : "Mute mic"}
-              </button>
-              <button
-                className="button"
-                disabled={voice.connectionState !== "connected"}
-                onClick={voice.interrupt}
-                type="button"
-              >
-                Interrupt
-              </button>
+              <p className="panel-kicker">Conversation</p>
+              <h2>Live transcript</h2>
             </div>
           </header>
-
-          <form className="composer" onSubmit={sendTextMessage}>
-            <label className="field">
-              <span>Text fallback to the live agent</span>
-              <textarea
-                onChange={(event) => setChatMessage(event.target.value)}
-                placeholder="Tell the live voice agent what to do or answer its question."
-                rows={3}
-                value={chatMessage}
-              />
-            </label>
-            <button className="button accent" type="submit">
-              Send to voice session
-            </button>
-          </form>
-
-          {voice.error ? <p className="inline-error">{voice.error}</p> : null}
 
           <div className="transcript">
             {transcript.length === 0 ? (
               <p className="empty-state">
-                No live transcript yet. Connect voice to start a realtime session.
+                Waiting for the first turn. If a browser microphone prompt appears,
+                allow it and then speak your request.
               </p>
             ) : (
-              transcript.slice(-10).map((entry, index) => (
+              transcript.slice(-12).map((entry, index) => (
                 <article className="transcript-row" key={`${entry.label}-${index}`}>
                   <p className="transcript-label">{entry.label}</p>
                   <p>{entry.body}</p>
@@ -269,218 +184,53 @@ export default function App() {
         <section className="panel">
           <header className="panel-header">
             <div>
-              <p className="panel-kicker">Manual kickoff</p>
-              <h2>Submit a task directly</h2>
-            </div>
-          </header>
-
-          <form className="composer" onSubmit={submitRequest}>
-            <label className="field">
-              <span>Task request</span>
-              <textarea
-                onChange={(event) => setRequest(event.target.value)}
-                placeholder="Book a haircut for Friday afternoon near San Francisco, prefer any stylist under $70."
-                rows={5}
-                value={request}
-              />
-            </label>
-            <button className="button accent" disabled={submitting} type="submit">
-              {submitting ? "Submitting..." : "Create task"}
-            </button>
-          </form>
-
-          {taskError ? <p className="inline-error">{taskError}</p> : null}
-
-          <div className="health-note">
-            <strong>Execution policy:</strong> the app minimizes clarification, but it
-            still pauses for sensitive actions like authentication, payment, destructive
-            changes, and unknown automation domains.
-          </div>
-        </section>
-
-        <section className="panel wide">
-          <header className="panel-header">
-            <div>
-              <p className="panel-kicker">Task board</p>
-              <h2>Background runs</h2>
-            </div>
-            <p className="panel-meta">{tasks.length} task(s)</p>
-          </header>
-
-          {tasks.length === 0 ? (
-            <p className="empty-state">
-              No tasks yet. Speak a request or submit one manually.
-            </p>
-          ) : (
-            <div className="task-list">
-              {tasks.map((task) => (
-                <article className="task-card" key={task.id}>
-                  <header className="task-header">
-                    <div>
-                      <p className="task-status" data-status={task.status}>
-                        {task.status.replaceAll("_", " ")}
-                      </p>
-                      <h3>{task.title}</h3>
-                    </div>
-                    <p className="task-time">{formatTimestamp(task.updatedAt)}</p>
-                  </header>
-
-                  <p className="task-request">{task.userRequest}</p>
-
-                  <div className="task-meta-grid">
-                    <div>
-                      <span>Executor</span>
-                      <strong>{task.selectedExecutor}</strong>
-                    </div>
-                    <div>
-                      <span>Category</span>
-                      <strong>{task.category}</strong>
-                    </div>
-                    <div>
-                      <span>Domains</span>
-                      <strong>{task.suggestedDomains.join(", ") || "none yet"}</strong>
-                    </div>
-                  </div>
-
-                  {task.execution.plan ? (
-                    <p className="plan-box">{task.execution.plan}</p>
-                  ) : null}
-
-                  {task.missingInputs.length > 0 ? (
-                    <section className="action-box">
-                      <h4>More information needed</h4>
-                      {task.missingInputs.map((question) => (
-                        <label className="field" key={question.id}>
-                          <span>{question.label}</span>
-                          <input
-                            onChange={(event) =>
-                              setTaskDrafts((current) => ({
-                                ...current,
-                                [task.id]: {
-                                  ...(current[task.id] ?? {}),
-                                  [question.id]: event.target.value
-                                }
-                              }))
-                            }
-                            placeholder={question.placeholder ?? question.description}
-                            type={question.sensitive ? "password" : "text"}
-                            value={taskDrafts[task.id]?.[question.id] ?? ""}
-                          />
-                        </label>
-                      ))}
-                      <button
-                        className="button accent"
-                        onClick={() => {
-                          void submitTaskInputs(task);
-                        }}
-                        type="button"
-                      >
-                        Submit details
-                      </button>
-                    </section>
-                  ) : null}
-
-                  {task.approvals.length > 0 ? (
-                    <section className="action-box">
-                      <h4>Pending approvals</h4>
-                      {task.approvals.map((approval) => (
-                        <div className="approval-row" key={approval.id}>
-                          <div>
-                            <strong>{approval.title}</strong>
-                            <p>{approval.reason}</p>
-                          </div>
-                          <div className="button-row">
-                            <button
-                              className="button accent"
-                              onClick={() => {
-                                void resolveApproval(task.id, approval.id, true);
-                              }}
-                              type="button"
-                            >
-                              Approve
-                            </button>
-                            <button
-                              className="button"
-                              onClick={() => {
-                                void resolveApproval(task.id, approval.id, false);
-                              }}
-                              type="button"
-                            >
-                              Reject
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </section>
-                  ) : null}
-
-                  {task.result ? (
-                    <section className="result-box">
-                      <h4>{task.result.summary}</h4>
-                      <p>{task.result.details}</p>
-                      {task.result.sources.length > 0 ? (
-                        <div className="link-list">
-                          {task.result.sources.map((source) => (
-                            <a href={source} key={source} rel="noreferrer" target="_blank">
-                              {source}
-                            </a>
-                          ))}
-                        </div>
-                      ) : null}
-                      {task.result.artifactUrls.length > 0 ? (
-                        <div className="link-list">
-                          {task.result.artifactUrls.map((artifactUrl) => (
-                            <a href={artifactUrl} key={artifactUrl} rel="noreferrer" target="_blank">
-                              Open artifact
-                            </a>
-                          ))}
-                        </div>
-                      ) : null}
-                    </section>
-                  ) : null}
-
-                  {task.error ? <p className="inline-error">{task.error}</p> : null}
-
-                  <div className="progress-log">
-                    {task.progress.slice(0, 5).map((entry) => (
-                      <div className="progress-row" key={entry.id}>
-                        <span>{entry.message}</span>
-                        <time>{formatTimestamp(entry.createdAt)}</time>
-                      </div>
-                    ))}
-                  </div>
-                </article>
-              ))}
-            </div>
-          )}
-        </section>
-
-        <section className="panel">
-          <header className="panel-header">
-            <div>
-              <p className="panel-kicker">Current focus</p>
-              <h2>Operator snapshot</h2>
+              <p className="panel-kicker">Current task</p>
+              <h2>Operator state</h2>
             </div>
           </header>
 
           {activeTask ? (
-            <>
+            <article className="task-card">
               <p className="task-status" data-status={activeTask.status}>
                 {activeTask.status.replaceAll("_", " ")}
               </p>
               <h3>{activeTask.title}</h3>
               <p className="task-request">{activeTask.userRequest}</p>
+              {activeTask.execution.plan ? (
+                <p className="plan-box">{activeTask.execution.plan}</p>
+              ) : null}
+              {activeTask.missingInputs.length > 0 ? (
+                <div className="note-block">
+                  The agent is waiting for spoken answers about{" "}
+                  {activeTask.missingInputs.map((question) => question.label).join(", ")}.
+                </div>
+              ) : null}
+              {activeTask.approvals.length > 0 ? (
+                <div className="note-block">
+                  The agent is waiting for a spoken yes or no on{" "}
+                  {activeTask.approvals.map((approval) => approval.title).join(", ")}.
+                </div>
+              ) : null}
+              {activeTask.result ? (
+                <div className="result-box">
+                  <h4>{activeTask.result.summary}</h4>
+                  <p>{activeTask.result.details}</p>
+                </div>
+              ) : null}
+              {activeTask.error ? <p className="inline-error">{activeTask.error}</p> : null}
               <div className="progress-log">
-                {activeTask.progress.slice(0, 8).map((entry) => (
+                {activeTask.progress.slice(-6).reverse().map((entry) => (
                   <div className="progress-row" key={entry.id}>
                     <span>{entry.message}</span>
                     <time>{formatTimestamp(entry.createdAt)}</time>
                   </div>
                 ))}
               </div>
-            </>
+            </article>
           ) : (
-            <p className="empty-state">No active task.</p>
+            <p className="empty-state">
+              Ready for a voice request. The first task will appear here automatically.
+            </p>
           )}
         </section>
       </section>

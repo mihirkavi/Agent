@@ -1,0 +1,43 @@
+[     438ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://localhost:3000/favicon.ico:0
+[  231165ms] [ERROR] React has detected a change in the order of Hooks called by %s. This will lead to bugs and errors if not fixed. For more information, read the Rules of Hooks: https://react.dev/link/rules-of-hooks
+
+   Previous render            Next render
+   ------------------------------------------------------
+%s   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ App 1. useState                   useState
+2. useState                   useState
+3. useState                   useState
+4. useRef                     useRef
+5. useRef                     useRef
+6. useState                   useState
+7. useState                   useState
+8. useState                   useState
+9. useState                   useState
+10. useCallback               useCallback
+11. useCallback               useCallback
+12. useCallback               useCallback
+13. useCallback               useCallback
+14. useEffect                 useEffect
+15. useCallback               useCallback
+16. useEffect                 useEffect
+17. useEffect                 useEffect
+18. useCallback               useCallback
+19. useCallback               useCallback
+20. useCallback               useEffect
+ @ http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=8f5a0aab:5593
+[  231177ms] TypeError: Cannot read properties of undefined (reading 'length')
+    at areHookInputsEqual (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=8f5a0aab:5628:38)
+    at updateEffectImpl (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=8f5a0aab:6417:50)
+    at Object.useEffect (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=8f5a0aab:19076:11)
+    at exports.useEffect (http://localhost:3000/node_modules/.vite/deps/chunk-RY7GF66K.js?v=d232b4a4:923:36)
+    at App (http://localhost:3000/src/App.tsx?t=1773208393844:50:3)
+    at Object.react_stack_bottom_frame (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=8f5a0aab:18509:20)
+    at renderWithHooksAgain (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=8f5a0aab:5729:22)
+    at renderWithHooks (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=8f5a0aab:5665:24)
+    at updateFunctionComponent (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=8f5a0aab:7475:21)
+    at beginWork (http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=8f5a0aab:8525:20)
+[  231174ms] [WARNING] %s
+
+%s
+ An error occurred in the <App> component. Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://react.dev/link/error-boundaries to learn more about error boundaries. @ http://localhost:3000/node_modules/.vite/deps/react-dom_client.js?v=8f5a0aab:6965

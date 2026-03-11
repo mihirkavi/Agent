@@ -1,0 +1,20 @@
+- main [ref=e3]:
+  - generic [ref=e4]:
+    - paragraph [ref=e5]: Voice Operator
+    - heading "Just speak." [level=1] [ref=e6]
+    - paragraph [ref=e7]: No buttons. No text forms. The session starts automatically, listens for your request, and keeps the task moving by voice.
+    - generic [ref=e10]:
+      - paragraph [ref=e11]: Voice idle
+      - paragraph [ref=e13]: Starting voice operator.
+      - paragraph [ref=e14]: OpenAI missing key
+  - generic [ref=e15]:
+    - generic [ref=e16]:
+      - generic [ref=e18]:
+        - paragraph [ref=e19]: Conversation
+        - heading "Live transcript" [level=2] [ref=e20]
+      - paragraph [ref=e22]: Waiting for the first turn. If a browser microphone prompt appears, allow it and then speak your request.
+    - generic [ref=e23]:
+      - generic [ref=e25]:
+        - paragraph [ref=e26]: Current task
+        - heading "Operator state" [level=2] [ref=e27]
+      - paragraph [ref=e28]: Ready for a voice request. The first task will appear here automatically.

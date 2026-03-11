@@ -1,0 +1,36 @@
+- main [ref=e3]:
+  - generic [ref=e4]:
+    - paragraph [ref=e5]: Voice Operator
+    - heading "Just speak." [level=1] [ref=e6]
+    - paragraph [ref=e7]: No buttons. No text forms. The session starts automatically, listens for your request, and keeps the task moving by voice.
+    - generic [ref=e10]:
+      - paragraph [ref=e11]: Voice connected
+      - paragraph [ref=e13]: Listening. Say what you want done, then answer follow-up questions out loud.
+      - paragraph [ref=e14]: OpenAI configured
+  - generic [ref=e15]:
+    - generic [ref=e16]:
+      - generic [ref=e18]:
+        - paragraph [ref=e19]: Conversation
+        - heading "Live transcript" [level=2] [ref=e20]
+      - generic [ref=e21]:
+        - article [ref=e40]:
+          - paragraph [ref=e41]: user
+          - paragraph [ref=e42]: Hello.
+        - article [ref=e43]:
+          - paragraph [ref=e44]: assistant
+          - paragraph [ref=e45]: Hi there! What can I help you with today?
+    - generic [ref=e23]:
+      - generic [ref=e25]:
+        - paragraph [ref=e26]: Current task
+        - heading "Operator state" [level=2] [ref=e27]
+      - article [ref=e29]:
+        - paragraph [ref=e30]: running
+        - heading "Book haircut appointment" [level=3] [ref=e31]
+        - paragraph [ref=e32]: Book a haircut appointment at Supercuts on Coleman Avenue for Sunday at 10 a.m.
+        - generic [ref=e33]:
+          - generic [ref=e34]:
+            - generic [ref=e35]: Analyzing task
+            - time [ref=e36]: Mar 10, 10:53 PM
+          - generic [ref=e37]:
+            - generic [ref=e38]: Task accepted
+            - time [ref=e39]: Mar 10, 10:50 PM

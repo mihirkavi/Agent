@@ -12,20 +12,24 @@ function stringifyTaskSummary(task: {
   status: string;
   progress: Array<{ message: string }>;
   result?: { summary: string };
-  missingInputs?: Array<{ label: string }>;
-  approvals?: Array<{ title: string }>;
+  missingInputs?: Array<{ id: string; label: string }>;
+  approvals?: Array<{ id: string; title: string }>;
 }): string {
-  const latestProgress = task.progress.at(0)?.message ?? "";
-  const missing = task.missingInputs?.map((item) => item.label).join(", ");
-  const approvals = task.approvals?.map((item) => item.title).join(", ");
+  const latestProgress = task.progress.at(-1)?.message ?? "";
+  const missing = task.missingInputs
+    ?.map((item) => `${item.id}: ${item.label}`)
+    .join("; ");
+  const approvals = task.approvals
+    ?.map((item) => `${item.id}: ${item.title}`)
+    .join("; ");
 
   return [
     `Task ${task.id}: ${task.title}.`,
     `Status: ${task.status}.`,
     latestProgress ? `Recent update: ${latestProgress}.` : "",
     task.result?.summary ? `Result: ${task.result.summary}.` : "",
-    missing ? `Still needed: ${missing}.` : "",
-    approvals ? `Pending approvals: ${approvals}.` : ""
+    missing ? `Required user inputs by id: ${missing}.` : "",
+    approvals ? `Pending approvals by id: ${approvals}.` : ""
   ]
     .filter(Boolean)
     .join(" ");
@@ -33,10 +37,57 @@ function stringifyTaskSummary(task: {
 
 export function useVoiceOperator() {
   const sessionRef = useRef<RealtimeSession | null>(null);
+  const attemptedAutoconnectRef = useRef(false);
   const [connectionState, setConnectionState] = useState<ConnectionState>("idle");
   const [history, setHistory] = useState<RealtimeItem[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [muted, setMuted] = useState(false);
+
+  const wait = useCallback(async (milliseconds: number) => {
+    await new Promise((resolve) => {
+      window.setTimeout(resolve, milliseconds);
+    });
+  }, []);
+
+  const waitForTaskTurn = useCallback(
+    async (taskId: string) => {
+      let task = await api.getTask(taskId);
+      const startedAt = Date.now();
+
+      while (Date.now() - startedAt < 15000) {
+        if (
+          task.status === "needs_input" ||
+          task.status === "needs_approval" ||
+          task.status === "completed" ||
+          task.status === "failed" ||
+          task.status === "cancelled" ||
+          task.missingInputs.length > 0 ||
+          task.approvals.length > 0 ||
+          Boolean(task.result) ||
+          task.selectedExecutor !== "router"
+        ) {
+          return task;
+        }
+
+        await wait(900);
+        task = await api.getTask(taskId);
+      }
+
+      return task;
+    },
+    [wait]
+  );
+
+  const requestMicrophoneAccess = useCallback(async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      throw new Error("This browser does not support microphone access.");
+    }
+
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: true
+    });
+    stream.getTracks().forEach((track) => track.stop());
+  }, []);
 
   const disconnect = useCallback(() => {
     sessionRef.current?.close();
@@ -56,6 +107,7 @@ export function useVoiceOperator() {
     setError(null);
 
     try {
+      await requestMicrophoneAccess();
       const secret = await api.createRealtimeClientSecret();
 
       const agent = new RealtimeAgent({
@@ -82,7 +134,8 @@ Goals:
             }),
             execute: async ({ request, title }) => {
               const task = await api.submitTask({ request, title });
-              return stringifyTaskSummary(task);
+              const updatedTask = await waitForTaskTurn(task.id);
+              return stringifyTaskSummary(updatedTask);
             }
           }),
           tool({
@@ -114,7 +167,8 @@ Goals:
             }),
             execute: async ({ taskId, inputs }) => {
               const task = await api.updateTaskInputs(taskId, { inputs });
-              return stringifyTaskSummary(task);
+              const updatedTask = await waitForTaskTurn(task.id);
+              return stringifyTaskSummary(updatedTask);
             }
           }),
           tool({
@@ -131,7 +185,8 @@ Goals:
                 approvalId,
                 approved
               });
-              return stringifyTaskSummary(task);
+              const updatedTask = await waitForTaskTurn(task.id);
+              return stringifyTaskSummary(updatedTask);
             }
           })
         ]
@@ -151,6 +206,7 @@ Goals:
             ? event.error.message
             : "Realtime session error."
         );
+        sessionRef.current = null;
         setConnectionState("error");
       });
 
@@ -172,15 +228,34 @@ Goals:
           : "Unable to connect to the voice session."
       );
     }
-  }, []);
+  }, [requestMicrophoneAccess, waitForTaskTurn]);
 
-  const sendTextMessage = useCallback((message: string) => {
-    if (!sessionRef.current || !message.trim()) {
+  useEffect(() => {
+    if (attemptedAutoconnectRef.current) {
       return;
     }
 
-    sessionRef.current.sendMessage(message.trim());
-  }, []);
+    attemptedAutoconnectRef.current = true;
+    void connect();
+  }, [connect]);
+
+  useEffect(() => {
+    if (connectionState !== "error" || sessionRef.current) {
+      return;
+    }
+
+    if (error?.toLowerCase().includes("permission")) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      void connect();
+    }, 4000);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [connectionState, connect, error]);
 
   const interrupt = useCallback(() => {
     sessionRef.current?.interrupt();
@@ -202,10 +277,8 @@ Goals:
     history,
     error,
     muted,
-    connect,
     disconnect,
     interrupt,
-    sendTextMessage,
     toggleMute
   };
 }
