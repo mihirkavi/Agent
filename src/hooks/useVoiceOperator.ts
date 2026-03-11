@@ -6,12 +6,22 @@ import { api } from "../lib/api";
 
 type ConnectionState = "idle" | "connecting" | "connected" | "error";
 
+declare global {
+  interface Window {
+    __voiceOperatorDebug?: {
+      sendTextMessage: (message: string) => void;
+      getConnectionState: () => ConnectionState;
+      reconnect: () => void;
+    };
+  }
+}
+
 function stringifyTaskSummary(task: {
   id: string;
   title: string;
   status: string;
   progress: Array<{ message: string }>;
-  result?: { summary: string };
+  result?: { summary: string; details: string; nextSteps?: string[] };
   missingInputs?: Array<{ id: string; label: string }>;
   approvals?: Array<{ id: string; title: string }>;
 }): string {
@@ -28,6 +38,10 @@ function stringifyTaskSummary(task: {
     `Status: ${task.status}.`,
     latestProgress ? `Recent update: ${latestProgress}.` : "",
     task.result?.summary ? `Result: ${task.result.summary}.` : "",
+    task.result?.details ? `Result details: ${task.result.details}.` : "",
+    task.result?.nextSteps?.length
+      ? `Next steps: ${task.result.nextSteps.join(" ")}`
+      : "",
     missing ? `Required user inputs by id: ${missing}.` : "",
     approvals ? `Pending approvals by id: ${approvals}.` : ""
   ]
@@ -122,6 +136,9 @@ Goals:
 - If the backend later reports missing details, ask the user and call provide_task_inputs.
 - If the backend reports a pending approval, ask the user for a yes/no answer and call resolve_task_approval.
 - Never claim a task is completed unless the backend status says completed.
+- Never claim an external account or website was changed unless the backend result details explicitly say the account write already happened.
+- If a calendar task result says an import file or deeplink was created, say exactly that. Do not say it already appeared in the user's personal calendar.
+- Default to English unless the user explicitly speaks another language.
 - Keep spoken answers brief and operational.`,
         tools: [
           tool({
@@ -256,6 +273,28 @@ Goals:
       window.clearTimeout(timeoutId);
     };
   }, [connectionState, connect, error]);
+
+  const sendTextMessage = useCallback((message: string) => {
+    if (!sessionRef.current || !message.trim()) {
+      return;
+    }
+
+    sessionRef.current.sendMessage(message.trim());
+  }, []);
+
+  useEffect(() => {
+    window.__voiceOperatorDebug = {
+      sendTextMessage,
+      getConnectionState: () => connectionState,
+      reconnect: () => {
+        void connect();
+      }
+    };
+
+    return () => {
+      delete window.__voiceOperatorDebug;
+    };
+  }, [connect, connectionState, sendTextMessage]);
 
   const interrupt = useCallback(() => {
     sessionRef.current?.interrupt();
