@@ -104,9 +104,7 @@ export default function App() {
     };
   }, []);
 
-  const activeTask =
-    tasks.find((task) => ["running", "queued", "needs_input", "needs_approval"].includes(task.status)) ??
-    tasks[0];
+  const activeTask = tasks[0];
 
   const transcript = voice.history
     .map(renderRealtimeItem)

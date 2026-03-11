@@ -1,8 +1,11 @@
+import fs from "node:fs/promises";
+import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { Agent, run, tool, webSearchTool } from "@openai/agents";
 import type {
   ApprovalType,
+  CalendarEventDraft,
   TaskApprovalRequest,
   TaskCategory,
   TaskExecutionContext,
@@ -14,6 +17,17 @@ import type {
 import { BrowserController, DomainApprovalRequiredError, normalizeDomain } from "./browser-controller.js";
 import { config, hasOpenAIKey } from "./config.js";
 import { TaskStore } from "./task-store.js";
+
+const calendarEventSchema = z.object({
+  title: z.string(),
+  startIso: z.string().optional(),
+  endIso: z.string().optional(),
+  timezone: z.string().optional(),
+  location: z.string().optional(),
+  description: z.string().optional(),
+  allDay: z.boolean().optional(),
+  durationMinutes: z.number().int().min(15).max(7 * 24 * 60).optional()
+});
 
 const taskAnalysisSchema = z.object({
   title: z.string(),
@@ -57,7 +71,8 @@ const taskAnalysisSchema = z.object({
       })
     )
     .default([]),
-  suggestedDomains: z.array(z.string()).default([])
+  suggestedDomains: z.array(z.string()).default([]),
+  calendarEvent: calendarEventSchema.optional()
 });
 
 const researchSchema = z.object({
@@ -109,6 +124,61 @@ function createDefaultExecutionContext(): TaskExecutionContext {
   };
 }
 
+function isCalendarTaskRequest(request: string): boolean {
+  return (
+    /\bcalendar\b/i.test(request) &&
+    /\b(add|create|schedule|put|make|set up)\b/i.test(request)
+  );
+}
+
+function escapeIcsText(value: string): string {
+  return value
+    .replace(/\\/g, "\\\\")
+    .replace(/\n/g, "\\n")
+    .replace(/,/g, "\\,")
+    .replace(/;/g, "\\;");
+}
+
+function formatUtcForIcs(date: Date): string {
+  return date
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace(/\.\d{3}Z$/, "Z");
+}
+
+function formatDateOnlyForIcs(date: Date): string {
+  return date.toISOString().slice(0, 10).replace(/-/g, "");
+}
+
+function toGoogleCalendarDate(date: Date): string {
+  return date
+    .toISOString()
+    .replace(/[-:]/g, "")
+    .replace(/\.\d{3}Z$/, "Z");
+}
+
+function formatEventWindow(
+  start: Date,
+  end: Date,
+  timezone: string,
+  allDay: boolean
+): string {
+  if (allDay) {
+    return new Intl.DateTimeFormat("en-US", {
+      dateStyle: "full",
+      timeZone: timezone
+    }).format(start);
+  }
+
+  const formatter = new Intl.DateTimeFormat("en-US", {
+    dateStyle: "full",
+    timeStyle: "short",
+    timeZone: timezone
+  });
+
+  return `${formatter.format(start)} to ${formatter.format(end)}`;
+}
+
 function parseCategory(executor: TaskAnalysis["selectedExecutor"]): TaskCategory {
   switch (executor) {
     case "research":
@@ -157,7 +227,7 @@ export class TaskRunner {
 
   listTasks(): TaskRecord[] {
     return Array.from(this.tasks.values()).sort((left, right) =>
-      right.createdAt.localeCompare(left.createdAt)
+      right.updatedAt.localeCompare(left.updatedAt)
     );
   }
 
@@ -367,6 +437,10 @@ export class TaskRunner {
   }
 
   private async analyzeTask(task: TaskRecord): Promise<TaskAnalysis> {
+    if (isCalendarTaskRequest(task.userRequest)) {
+      return this.analyzeCalendarTask(task);
+    }
+
     const agent = new Agent({
       name: "Task Router",
       model: config.taskModel,
@@ -402,6 +476,54 @@ Return suggestedDomains as bare domains without protocols where possible. If no 
 
     if (!result.finalOutput) {
       throw new Error("Planner did not return structured output.");
+    }
+
+    return result.finalOutput;
+  }
+
+  private async analyzeCalendarTask(task: TaskRecord): Promise<TaskAnalysis> {
+    const timezone =
+      Intl.DateTimeFormat().resolvedOptions().timeZone || "America/Los_Angeles";
+    const now = new Date();
+
+    const agent = new Agent({
+      name: "Calendar Planner",
+      model: config.fastModel,
+      instructions: `You convert user requests into a local calendar-event workflow.
+
+Current date/time: ${now.toISOString()}
+Default timezone: ${timezone}
+
+Return selectedExecutor "api" and category "api_workflow".
+This workflow completes by generating an importable ICS calendar file and a Google Calendar deeplink.
+
+Rules:
+- Resolve relative dates like "tomorrow" or "next Friday" against the current date.
+- Use absolute ISO 8601 timestamps with offsets for startIso and endIso whenever enough information is available.
+- If the request gives a start time but no end time or duration, default durationMinutes to 60.
+- Ask only for missing details that truly block event creation, typically the event time or date.
+- Prefer inferring a reasonable event title from the request instead of asking for one.
+- Never ask for approvals; calendar file generation does not require account access.
+- Leave suggestedDomains empty.`,
+      outputType: taskAnalysisSchema
+    });
+
+    const result = await run(
+      agent,
+      JSON.stringify(
+        {
+          request: task.userRequest,
+          collectedInputs: task.collectedInputs,
+          approvedActionIds: task.approvedActionIds,
+          knownExecutionContext: task.execution
+        },
+        null,
+        2
+      )
+    );
+
+    if (!result.finalOutput) {
+      throw new Error("Calendar planner did not return structured output.");
     }
 
     return result.finalOutput;
@@ -459,7 +581,8 @@ Return suggestedDomains as bare domains without protocols where possible. If no 
         plan: analysis.executionPlan,
         searchQuery: analysis.searchQuery,
         targetUrl: analysis.targetUrl,
-        successCriteria: analysis.successCriteria
+        successCriteria: analysis.successCriteria,
+        calendarEvent: analysis.calendarEvent
       },
       missingInputs,
       approvals: pendingApprovals,
@@ -520,17 +643,7 @@ Return suggestedDomains as bare domains without protocols where possible. If no 
     }
 
     if (task.selectedExecutor === "api") {
-      return {
-        summary: "No specific API connector is configured for this task yet.",
-        details:
-          "The planner identified an API-oriented workflow, but this starter app currently executes research and browser automation paths. Add a service connector for the target provider to make this path operational.",
-        sources: [],
-        nextSteps: [
-          "Add a provider-specific connector on the server.",
-          "Re-run the task once credentials and schemas are available."
-        ],
-        artifactUrls: []
-      };
+      return this.runApiWorkflow(task);
     }
 
     return {
@@ -572,6 +685,123 @@ Return suggestedDomains as bare domains without protocols where possible. If no 
       sources: output.sources,
       nextSteps: output.nextSteps,
       artifactUrls: []
+    };
+  }
+
+  private async runApiWorkflow(task: TaskRecord): Promise<TaskResult> {
+    if (task.execution.calendarEvent) {
+      return this.runCalendarTask(task, task.execution.calendarEvent);
+    }
+
+    return {
+      summary: "No specific API connector is configured for this task yet.",
+      details:
+        "The planner identified an API-oriented workflow, but this app only has a concrete calendar-event API executor at the moment.",
+      sources: [],
+      nextSteps: [
+        "Add a provider-specific connector on the server.",
+        "Re-run the task once credentials and schemas are available."
+      ],
+      artifactUrls: []
+    };
+  }
+
+  private async runCalendarTask(
+    task: TaskRecord,
+    calendarEvent: CalendarEventDraft
+  ): Promise<TaskResult> {
+    if (!calendarEvent.startIso) {
+      throw new Error("Calendar event is missing a start date/time.");
+    }
+
+    const start = new Date(calendarEvent.startIso);
+    if (Number.isNaN(start.getTime())) {
+      throw new Error("Calendar event start time is invalid.");
+    }
+
+    let end: Date;
+    if (calendarEvent.endIso) {
+      end = new Date(calendarEvent.endIso);
+    } else {
+      const durationMinutes = calendarEvent.durationMinutes ?? 60;
+      end = new Date(start.getTime() + durationMinutes * 60_000);
+    }
+
+    if (Number.isNaN(end.getTime()) || end <= start) {
+      end = new Date(start.getTime() + 60 * 60_000);
+    }
+
+    const timezone =
+      calendarEvent.timezone ||
+      Intl.DateTimeFormat().resolvedOptions().timeZone ||
+      "America/Los_Angeles";
+    const uid = `${task.id}@voice-operator.local`;
+    const createdAt = formatUtcForIcs(new Date());
+    const icsPath = path.resolve(config.artifactDir, `${task.id}.ics`);
+    const icsUrl = `/artifacts/${task.id}.ics`;
+    const displayWindow = formatEventWindow(
+      start,
+      end,
+      timezone,
+      calendarEvent.allDay ?? false
+    );
+
+    const icsLines = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "PRODID:-//Voice Operator//EN",
+      "CALSCALE:GREGORIAN",
+      "METHOD:PUBLISH",
+      "BEGIN:VEVENT",
+      `UID:${uid}`,
+      `DTSTAMP:${createdAt}`,
+      calendarEvent.allDay
+        ? `DTSTART;VALUE=DATE:${formatDateOnlyForIcs(start)}`
+        : `DTSTART:${formatUtcForIcs(start)}`,
+      calendarEvent.allDay
+        ? `DTEND;VALUE=DATE:${formatDateOnlyForIcs(end)}`
+        : `DTEND:${formatUtcForIcs(end)}`,
+      `SUMMARY:${escapeIcsText(calendarEvent.title)}`,
+      calendarEvent.location
+        ? `LOCATION:${escapeIcsText(calendarEvent.location)}`
+        : "",
+      calendarEvent.description
+        ? `DESCRIPTION:${escapeIcsText(calendarEvent.description)}`
+        : "",
+      "END:VEVENT",
+      "END:VCALENDAR",
+      ""
+    ].filter(Boolean);
+
+    await fs.mkdir(config.artifactDir, { recursive: true });
+    await fs.writeFile(icsPath, icsLines.join("\r\n"), "utf8");
+
+    const googleCalendarUrl = new URL("https://calendar.google.com/calendar/render");
+    googleCalendarUrl.searchParams.set("action", "TEMPLATE");
+    googleCalendarUrl.searchParams.set("text", calendarEvent.title);
+    googleCalendarUrl.searchParams.set(
+      "dates",
+      `${toGoogleCalendarDate(start)}/${toGoogleCalendarDate(end)}`
+    );
+    googleCalendarUrl.searchParams.set("ctz", timezone);
+    if (calendarEvent.location) {
+      googleCalendarUrl.searchParams.set("location", calendarEvent.location);
+    }
+    if (calendarEvent.description) {
+      googleCalendarUrl.searchParams.set("details", calendarEvent.description);
+    }
+
+    return {
+      summary: "Calendar event package created",
+      details:
+        `Created an importable calendar event for "${calendarEvent.title}" scheduled ${displayWindow}. ` +
+        `ICS file: ${icsUrl}. Google Calendar deeplink: ${googleCalendarUrl.toString()}`,
+      sources: [],
+      nextSteps: [
+        "Open the ICS artifact in Apple Calendar, Outlook, or another calendar app to import it.",
+        "Use the Google Calendar deeplink if you want to add it through a signed-in Google Calendar session."
+      ],
+      artifactUrls: [icsUrl]
     };
   }
 

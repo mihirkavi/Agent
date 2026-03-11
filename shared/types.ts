@@ -61,11 +61,23 @@ export interface TaskResult {
   artifactUrls: string[];
 }
 
+export interface CalendarEventDraft {
+  title: string;
+  startIso?: string;
+  endIso?: string;
+  timezone?: string;
+  location?: string;
+  description?: string;
+  allDay?: boolean;
+  durationMinutes?: number;
+}
+
 export interface TaskExecutionContext {
   plan: string;
   searchQuery?: string;
   targetUrl?: string;
   successCriteria: string[];
+  calendarEvent?: CalendarEventDraft;
 }
 
 export interface TaskRecord {

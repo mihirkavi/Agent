@@ -1,0 +1,43 @@
+- main [ref=e3]:
+  - generic [ref=e4]:
+    - paragraph [ref=e5]: Voice Operator
+    - heading "Just speak." [level=1] [ref=e6]
+    - paragraph [ref=e7]: No buttons. No text forms. The session starts automatically, listens for your request, and keeps the task moving by voice.
+    - generic [ref=e10]:
+      - paragraph [ref=e11]: Voice idle
+      - paragraph [ref=e13]: Starting voice operator.
+      - paragraph [ref=e14]: OpenAI configured
+  - generic [ref=e15]:
+    - generic [ref=e16]:
+      - generic [ref=e18]:
+        - paragraph [ref=e19]: Conversation
+        - heading "Live transcript" [level=2] [ref=e20]
+      - paragraph [ref=e22]: Waiting for the first turn. If a browser microphone prompt appears, allow it and then speak your request.
+    - generic [ref=e23]:
+      - generic [ref=e25]:
+        - paragraph [ref=e26]: Current task
+        - heading "Operator state" [level=2] [ref=e27]
+      - article [ref=e29]:
+        - paragraph [ref=e30]: completed
+        - 'heading "Create calendar event: Design Review" [level=3] [ref=e31]'
+        - paragraph [ref=e32]: "Add a calendar event called Design Review for Friday, March 13, 2026 from 2:00 PM to 3:00 PM Pacific at Zoom. Description: Review launch checklist."
+        - paragraph [ref=e33]: Generate an ICS calendar file and a Google Calendar deeplink for an event titled 'Design Review' on Friday, March 13, 2026 from 2:00 PM to 3:00 PM Pacific at Zoom with the description 'Review launch checklist.'
+        - generic [ref=e34]:
+          - heading "Calendar event package created" [level=4] [ref=e35]
+          - paragraph [ref=e36]: "Created an importable calendar event for \"Design Review\" scheduled Friday, March 13, 2026 at 2:00 PM to Friday, March 13, 2026 at 3:00 PM. ICS file: /artifacts/c4157266-9270-40be-8788-3242e4cb428f.ics. Google Calendar deeplink: https://calendar.google.com/calendar/render?action=TEMPLATE&text=Design+Review&dates=20260313T210000Z%2F20260313T220000Z&ctz=America%2FLos_Angeles&location=Zoom&details=Review+launch+checklist."
+        - generic [ref=e37]:
+          - generic [ref=e38]:
+            - generic [ref=e39]: Task completed
+            - time [ref=e40]: Mar 10, 11:11 PM
+          - generic [ref=e41]:
+            - generic [ref=e42]: Starting api executor
+            - time [ref=e43]: Mar 10, 11:11 PM
+          - generic [ref=e44]:
+            - generic [ref=e45]: Planner selected api
+            - time [ref=e46]: Mar 10, 11:11 PM
+          - generic [ref=e47]:
+            - generic [ref=e48]: Analyzing task
+            - time [ref=e49]: Mar 10, 11:11 PM
+          - generic [ref=e50]:
+            - generic [ref=e51]: Task accepted
+            - time [ref=e52]: Mar 10, 11:11 PM
