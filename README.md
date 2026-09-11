@@ -1,5 +1,7 @@
 # Agent — Voice Operator
 
+<p><img src="assets/brand/logo.png" alt="Voice Operator logo" width="96" height="96"></p>
+
 A voice-first task agent web app built with the OpenAI Realtime API, the OpenAI Agents SDK, and a background task worker for research and browser automation.
 
 ## What it does
@@ -26,3 +28,11 @@ This is a local development prototype. Voice, research, and automated browsing r
 ## License
 
 No license file is included in this repository. This README grants no additional reuse or redistribution permissions; contact the repository owner about permitted use.
+
+<!-- project-artwork:start -->
+## Project artwork
+
+![Conceptual artwork for Voice Operator](assets/brand/cover.png)
+
+Conceptual project artwork. [Asset files, design notes, and generation prompts](assets/brand/README.md).
+<!-- project-artwork:end -->
