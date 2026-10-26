@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset=".github/assets/banner-dark.png">
-    <img alt="Voice Operator: say it once, it gets done. A voice agent that researches and browses for you, and pauses only when it needs you. Built with OpenAI Realtime, the Agents SDK, Playwright and React." src=".github/assets/banner-light.png" width="100%">
+    <img alt="Voice Operator: Say it once. It gets done. A live voice agent hands your errand to a background worker that researches and browses, and pauses only when it needs you. Beside it, a voice waveform feeds three example task cards marked Running, Needs approval and Needs input. Built with OpenAI Realtime, the Agents SDK, Playwright and React." src=".github/assets/banner-light.png" width="100%">
   </picture>
 </p>
 
@@ -18,10 +18,10 @@
 </p>
 
 <p align="center">
-  <img alt="Status: prototype" src="https://img.shields.io/badge/status-prototype-6b6b6b?style=flat-square">
-  <img alt="Stack: TypeScript, React, Express" src="https://img.shields.io/badge/TypeScript%20%C2%B7%20React%20%C2%B7%20Express-111111?style=flat-square">
-  <img alt="Voice: OpenAI Realtime" src="https://img.shields.io/badge/voice-OpenAI%20Realtime-111111?style=flat-square">
-  <img alt="License: not specified" src="https://img.shields.io/badge/license-not%20specified-6b6b6b?style=flat-square">
+  <img alt="Status: prototype" src="https://img.shields.io/badge/status-prototype-D9572A?style=flat-square">
+  <img alt="Stack: TypeScript, React, Express" src="https://img.shields.io/badge/TypeScript%20%C2%B7%20React%20%C2%B7%20Express-0C1220?style=flat-square">
+  <img alt="Voice: OpenAI Realtime" src="https://img.shields.io/badge/voice-OpenAI%20Realtime-0C1220?style=flat-square">
+  <img alt="License: not specified" src="https://img.shields.io/badge/license-not%20specified-D9572A?style=flat-square">
 </p>
 
 <p align="center">
